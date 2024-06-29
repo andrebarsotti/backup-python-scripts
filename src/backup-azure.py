@@ -3,10 +3,24 @@ import os
 import tarfile
 import argparse
 import logging
-from azure.storage.blob import BlobServiceClient
+from azure.storage.blob import BlobServiceClient,ContentSettings
 from datetime import datetime
 from dotenv import load_dotenv
 from tqdm import tqdm
+
+class ProgressFileWrapper:
+    def __init__(self, file, progress_bar):
+        self.file = file
+        self.progress_bar = progress_bar
+
+    def read(self, size=-1):
+        data = self.file.read(size)
+        self.progress_bar.update(len(data))
+        return data
+
+    def tell(self):
+        return self.file.tell()
+
 
 def setup_logging():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -40,12 +54,16 @@ def create_tgz_backup(directory, output_filename):
     progress_bar.close()
     logging.info(f"Backup created: {output_filename}")
 
-def upload_to_azure(blob_service_client, container_name, blob_name, file_path):
-    logging.info(f"Uploading {file_path} to Azure container {container_name} as blob {blob_name}")
-    blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
-    with open(file_path, "rb") as data:
-        blob_client.upload_blob(data)
-    logging.info(f"Upload complete for blob: {blob_name}")
+def ensure_container_exists(blob_service_client, container_name):
+    logging.info(f"Checking if Azure container {container_name} exists.")
+    container_client = blob_service_client.get_container_client(container_name)
+    try:
+        container_client.get_container_properties()
+        logging.info(f"Container {container_name} already exists.")
+    except Exception:
+        logging.info(f"Container {container_name} does not exist, creating it.")
+        container_client.create_container()
+        logging.info(f"Container {container_name} created.")
 
 def load_environment_variables():
     load_dotenv()
@@ -74,7 +92,24 @@ def create_backup(directory):
     return backup_filename
 
 def upload_backup_to_azure(blob_service_client, container_name, backup_filename):
-    upload_to_azure(blob_service_client, container_name, backup_filename, backup_filename)
+    ensure_container_exists(blob_service_client, container_name)
+    
+    blob_client = blob_service_client.get_blob_client(container=container_name, blob=backup_filename)
+    
+    with open(backup_filename, "rb") as data:
+        file_size = data.seek(0, 2)  # Seek to end of file to get its size
+        data.seek(0)  # Reset to beginning
+        
+        progress_bar = tqdm(total=file_size, unit='B', unit_scale=True, desc=backup_filename)
+        
+        # Wrap the file with the progress bar
+        progress_file = ProgressFileWrapper(data, progress_bar)
+        
+        # Upload the file to Azure Blob Storage
+        blob_client.upload_blob(progress_file, overwrite=True, 
+                                content_settings=ContentSettings(content_type='application/octet-stream'))
+        
+        progress_bar.close()
 
 def cleanup_local_backup(backup_filename):
     logging.info(f"Cleaning up local backup file: {backup_filename}")
