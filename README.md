@@ -116,7 +116,7 @@ This will start Azurite and expose the necessary ports. You can then use Azurite
 ## Build the Docker Image
 
 ```shell
-docker build -t azure-backup-cleanup .
+docker build -t andrebarsotti/azure-blob-backup .
 ```
 
 ## Run the Docker Container
@@ -129,7 +129,7 @@ docker run --rm \
            -e BACKUP_DIRECTORY='<path_to_backup_directory>' \
            -v <path_to_backup_directory>:/backup \
            --add-host=host.docker.internal:host-gateway \
-           azure-backup-cleanup
+           andrebarsotti/azure-blob-backup
 ```
 
 ## Environment Variables
