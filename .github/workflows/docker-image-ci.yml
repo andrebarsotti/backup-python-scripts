@@ -1,0 +1,50 @@
+name: docker-image-ci
+
+on:
+  push:
+    branches:
+      - 'main'
+      - 'release/**'
+
+  workflow_dispatch:
+
+env:
+  REGISTRY: andrebarsotti
+  IMAGE_NAME: azure-blob-backup
+  REGISTRY_USER: ${{ secrets.DOCKER_USER }}
+  REGISTRY_PWD: ${{ secrets.DOCKER_PWD }}
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0      
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          # registry: ${{ env.REGISTRY }}
+          username: ${{ env.REGISTRY_USER }}
+          password: ${{ env.REGISTRY_PWD }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          push: true
+          context: .
+          file: DockerFile
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
