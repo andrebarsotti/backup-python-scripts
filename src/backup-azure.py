@@ -3,33 +3,30 @@ import os
 import tarfile
 import argparse
 import logging
-from azure.storage.blob import BlobServiceClient,ContentSettings
+from progress_file_wrapper import ProgressFileWrapper
+from azure.storage.blob import BlobServiceClient, ContentSettings
 from datetime import datetime
 from dotenv import load_dotenv
 from tqdm import tqdm
 
-class ProgressFileWrapper:
-    def __init__(self, file, progress_bar):
-        self.file = file
-        self.progress_bar = progress_bar
-
-    def read(self, size=-1):
-        data = self.file.read(size)
-        self.progress_bar.update(len(data))
-        return data
-
-    def tell(self):
-        return self.file.tell()
-
-
 def setup_logging():
+    """
+    Configure the logging settings.
+    """
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     
     # Suppress logs from the Azure SDK
     logging.getLogger('azure.core.pipeline.policies.http_logging_policy').setLevel(logging.WARNING)
-    logging.getLogger('azure.storage.blob').setLevel(logging.WARNING)    
+    logging.getLogger('azure.storage.blob').setLevel(logging.WARNING)
+
 
 def get_size(start_path='.'):
+    """
+    Calculate the total size of the directory including its subdirectories.
+
+    :param start_path: Path of the directory to calculate the size of.
+    :return: Total size in bytes.
+    """
     total_size = 0
     for dirpath, dirnames, filenames in os.walk(start_path):
         for f in filenames:
@@ -37,7 +34,14 @@ def get_size(start_path='.'):
             total_size += os.path.getsize(fp)
     return total_size
 
+
 def create_tgz_backup(directory, output_filename):
+    """
+    Create a compressed tar.gz backup of the specified directory.
+
+    :param directory: The directory to backup.
+    :param output_filename: The name of the output tar.gz file.
+    """
     logging.info(f"Creating backup for directory: {directory}")
     total_size = get_size(directory)
     progress_bar = tqdm(total=total_size, unit='B', unit_scale=True, desc="Creating Backup")
@@ -51,10 +55,17 @@ def create_tgz_backup(directory, output_filename):
                     progress_bar.update(tarinfo.size)  # Updating progress bar with file size
                     tar.addfile(tarinfo, file)
     
-    progress_bar.close()
+        progress_bar.close()
     logging.info(f"Backup created: {output_filename}")
 
+
 def ensure_container_exists(blob_service_client, container_name):
+    """
+    Ensure the specified Azure Blob Storage container exists. Create it if it doesn't.
+
+    :param blob_service_client: BlobServiceClient instance.
+    :param container_name: Name of the Azure container.
+    """
     logging.info(f"Checking if Azure container {container_name} exists.")
     container_client = blob_service_client.get_container_client(container_name)
     try:
@@ -65,7 +76,14 @@ def ensure_container_exists(blob_service_client, container_name):
         container_client.create_container()
         logging.info(f"Container {container_name} created.")
 
+
 def load_environment_variables():
+    """
+    Load Azure storage connection string and container name from the environment variables.
+
+    :return: Tuple containing connection_string and container_name.
+    :raise ValueError: if environment variables are not set.
+    """
     load_dotenv()
     connection_string = os.getenv('AZURE_STORAGE_CONNECTION_STRING')
     container_name = os.getenv('AZURE_CONTAINER_NAME')
@@ -78,6 +96,11 @@ def load_environment_variables():
     return connection_string, container_name
 
 def parse_command_line_arguments():
+    """
+    Parse command line arguments.
+
+    :return: The directory to backup.
+    """
     parser = argparse.ArgumentParser(description="Backup a directory and upload to Azure Blob Storage.")
     parser.add_argument('directory', type=str, help='The directory to backup')
     args = parser.parse_args()
@@ -85,13 +108,28 @@ def parse_command_line_arguments():
 
     return args.directory
 
+
 def create_backup(directory):
+    """
+    Create a backup for the specified directory and return the backup filename.
+
+    :param directory: The directory to backup.
+    :return: The name of the backup file.
+    """
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
     backup_filename = f"{os.path.basename(directory)}_{timestamp}.tgz"
     create_tgz_backup(directory, backup_filename)
     return backup_filename
 
+
 def upload_backup_to_azure(blob_service_client, container_name, backup_filename):
+    """
+    Upload the backup file to Azure Blob Storage.
+
+    :param blob_service_client: BlobServiceClient instance.
+    :param container_name: Name of the Azure container.
+    :param backup_filename: The name of the backup file to upload.
+    """
     ensure_container_exists(blob_service_client, container_name)
     
     blob_client = blob_service_client.get_blob_client(container=container_name, blob=backup_filename)
@@ -111,12 +149,22 @@ def upload_backup_to_azure(blob_service_client, container_name, backup_filename)
         
         progress_bar.close()
 
+
 def cleanup_local_backup(backup_filename):
+    """
+    Remove the local backup file to save space after upload.
+
+    :param backup_filename: The name of the backup file to remove.
+    """
     logging.info(f"Cleaning up local backup file: {backup_filename}")
     os.remove(backup_filename)
     logging.info("Local backup file removed")
 
+
 def main():
+    """
+    Main entry point of the script.
+    """
     setup_logging()
     try:
         connection_string, container_name = load_environment_variables()
@@ -130,5 +178,7 @@ def main():
     except Exception as e:
         logging.error(f"An error occurred: {e}")
 
+
 if __name__ == "__main__":
     main()
+   
