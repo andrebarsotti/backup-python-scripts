@@ -6,14 +6,38 @@ import logging
 from azure.storage.blob import BlobServiceClient
 from datetime import datetime
 from dotenv import load_dotenv
+from tqdm import tqdm
 
 def setup_logging():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    
+    # Suppress logs from the Azure SDK
+    logging.getLogger('azure.core.pipeline.policies.http_logging_policy').setLevel(logging.WARNING)
+    logging.getLogger('azure.storage.blob').setLevel(logging.WARNING)    
+
+def get_size(start_path='.'):
+    total_size = 0
+    for dirpath, dirnames, filenames in os.walk(start_path):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            total_size += os.path.getsize(fp)
+    return total_size
 
 def create_tgz_backup(directory, output_filename):
     logging.info(f"Creating backup for directory: {directory}")
-    with tarfile.open(output_filename, "w:gz") as tar:
-        tar.add(directory, arcname=os.path.basename(directory))
+    total_size = get_size(directory)
+    progress_bar = tqdm(total=total_size, unit='B', unit_scale=True, desc="Creating Backup")
+    
+    with tarfile.open(name=output_filename, mode="w:gz", compresslevel=9) as tar:
+        for dirpath, dirnames, filenames in os.walk(directory):
+            for filename in filenames:
+                filepath = os.path.join(dirpath, filename)
+                tarinfo = tar.gettarinfo(filepath, arcname=os.path.relpath(filepath, directory))
+                with open(filepath, "rb") as file:
+                    progress_bar.update(tarinfo.size)  # Updating progress bar with file size
+                    tar.addfile(tarinfo, file)
+    
+    progress_bar.close()
     logging.info(f"Backup created: {output_filename}")
 
 def upload_to_azure(blob_service_client, container_name, blob_name, file_path):
