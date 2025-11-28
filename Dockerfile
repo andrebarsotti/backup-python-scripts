@@ -15,8 +15,9 @@ WORKDIR /app
 # Copy the requirements file
 COPY requirements.txt /app/
 
-# Install the required dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install bash and required dependencies
+RUN apk add --no-cache bash && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the source files
 COPY src/ /app/
@@ -26,4 +27,4 @@ COPY scripts/entry-point.sh /app/
 RUN chmod +x /app/entry-point.sh
 
 # Command to run the application (You can change this according to your application entry point)
-CMD ["ash", "entry-point.sh"]
+CMD ["bash", "/app/entry-point.sh"]
