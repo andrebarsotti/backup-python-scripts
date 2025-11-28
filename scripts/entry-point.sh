@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Check if the Python scripts are present in the src directory
 if [ ! -f "/app/backup-azure.py" ] || [ ! -f "/app/cleanup-azure.py" ]; then
