@@ -14,7 +14,6 @@ from shared_utils import (
 from azure.storage.blob import BlobServiceClient, ContentSettings
 from azure.core.exceptions import ResourceNotFoundError
 from datetime import datetime
-from pathlib import Path
 from tqdm import tqdm
 
 __all__ = [
