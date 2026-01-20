@@ -87,7 +87,7 @@ This is an Azure Backup Management system that provides automated backup and cle
   - filepath: Full path for local file operations
   - filename: Just the name for Azure blob
 
-- **`upload_backup_to_azure(blob_service_client, container_name, backup_filepath, blob_name)`** (line 154)
+- **`upload_backup_to_azure(blob_service_client, container_name, backup_filepath, blob_name)`** (line 181)
   - Uploads backup file to Azure with progress bar
   - Automatically creates container if it doesn't exist
   - Uses ProgressFileWrapper for upload tracking
