@@ -94,7 +94,7 @@ This is an Azure Backup Management system that provides automated backup and cle
   - backup_filepath: Local file path to upload
   - blob_name: Name for the blob in Azure (typically just the filename)
 
-- **`ensure_container_exists(blob_service_client, container_name)`** (line 62)
+- **`ensure_container_exists(blob_service_client, container_name)`** (line 122)
   - Checks for container existence
   - Creates container if missing
   - Idempotent operation
