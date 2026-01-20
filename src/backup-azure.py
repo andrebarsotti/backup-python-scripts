@@ -230,6 +230,10 @@ def main():
         connection_string, container_name = load_azure_environment_variables()
         directory, cli_output_dir = parse_command_line_arguments()
 
+        # Explicitly reject empty string for --output-dir to avoid ambiguous behavior
+        if cli_output_dir == "":
+            logging.error("Empty string provided for --output-dir; please omit the option or provide a valid directory path.")
+            return 1
         # Determine output directory: CLI takes precedence over env var
         output_dir = cli_output_dir or get_output_directory()
         if output_dir:
