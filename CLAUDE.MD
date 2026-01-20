@@ -76,7 +76,7 @@ This is an Azure Backup Management system that provides automated backup and cle
   - Verifies write permissions (e.g., via a test file or equivalent check)
   - Raises ValueError or an appropriate exception if the directory cannot be created or is not writable
 
-- **`create_tgz_backup(directory, output_filename)`** (line 57)
+- **`create_tgz_backup(directory, output_filename)`** (line 95)
   - Creates compressed tar.gz backup with progress tracking
   - Uses compression level 9 for maximum compression
   - Returns: None (creates file on disk)
