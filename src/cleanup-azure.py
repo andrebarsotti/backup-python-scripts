@@ -30,7 +30,7 @@ def positive_int(value):
     try:
         ivalue = int(value)
     except ValueError:
-        raise argparse.ArgumentTypeError(f"'{value}' is not a valid integer")
+        raise argparse.ArgumentTypeError(f"'{value}' is not valid; days must be provided as a positive integer")
     if ivalue <= 0:
         raise argparse.ArgumentTypeError(f"'{value}' must be a positive integer (greater than 0)")
     return ivalue
