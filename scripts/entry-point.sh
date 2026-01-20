@@ -35,6 +35,17 @@ if [ -n "$LOG_DIR" ]; then
     fi
 fi
 
+# Check BACKUP_OUTPUT_DIR writability (optional warning)
+if [ -n "$BACKUP_OUTPUT_DIR" ]; then
+    if [ ! -d "$BACKUP_OUTPUT_DIR" ]; then
+        echo "Warning: BACKUP_OUTPUT_DIR '$BACKUP_OUTPUT_DIR' does not exist. Will attempt to create it."
+    elif [ ! -w "$BACKUP_OUTPUT_DIR" ]; then
+        echo "Warning: BACKUP_OUTPUT_DIR '$BACKUP_OUTPUT_DIR' is not writable. Backup creation may fail."
+    else
+        echo "Backup output directory: $BACKUP_OUTPUT_DIR"
+    fi
+fi
+
 # Function to run the backup script
 run_backup_script() {
     echo "Running backup script with BACKUP_DIRECTORY=${BACKUP_DIRECTORY}..."
