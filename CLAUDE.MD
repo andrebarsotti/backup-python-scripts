@@ -71,10 +71,10 @@ This is an Azure Backup Management system that provides automated backup and cle
   - Gets output directory from BACKUP_OUTPUT_DIR environment variable
   - Returns: Path to output directory, or None for current directory
 
-- **`ensure_output_directory(output_dir)`** (line 39)
-  - Creates output directory if it doesn't exist
-  - Verifies write permissions with test file
-  - Raises ValueError if directory cannot be created or is not writable
+- **`ensure_directory(directory_path, purpose)`** (from `shared_utils.py`)
+  - Ensures the specified directory exists, creating it if necessary
+  - Verifies write permissions (e.g., via a test file or equivalent check)
+  - Raises ValueError or an appropriate exception if the directory cannot be created or is not writable
 
 - **`create_tgz_backup(directory, output_filename)`** (line 57)
   - Creates compressed tar.gz backup with progress tracking

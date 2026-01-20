@@ -80,12 +80,13 @@ def validate_directory_path(path, argument_name="directory"):
         ValueError: If path doesn't exist, is not a directory, or contains
                    suspicious path traversal patterns.
     """
-    # Check for path traversal attempts
-    normalized = os.path.normpath(path)
-    if '..' in normalized.split(os.sep):
-        raise ValueError(
-            f"Invalid {argument_name}: path traversal patterns not allowed"
-        )
+    # Check for path traversal attempts in the raw input
+    if isinstance(path, (str, os.PathLike)):
+        path_str = os.fspath(path)
+        if '..' in path_str.split(os.sep):
+            raise ValueError(
+                f"Invalid {argument_name}: path traversal patterns not allowed"
+            )
 
     path_obj = Path(path)
 
