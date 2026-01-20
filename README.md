@@ -86,7 +86,7 @@ The CLI `-o` flag takes precedence over the `BACKUP_OUTPUT_DIR` environment vari
 
 **Code Overview:**
 
-- `main()` function (lines 59-71) orchestrates loading environment variables, parsing command-line arguments, creating the backup, uploading it to Azure, and cleaning up local backups.
+- `main()` function (starting at line 221) orchestrates loading environment variables, parsing command-line arguments, creating the backup, uploading it to Azure, and cleaning up local backups.
 - `load_environment_variables()` function (lines 25-35) loads the necessary Azure environment variables.
 - `parse_command_line_arguments()` function (lines 37-43) parses the command line and retrieves the directory to be backed up.
 
