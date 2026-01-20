@@ -138,6 +138,7 @@ docker run --rm \
 - **AZURE_CONTAINER_NAME**: The name of the Azure container where backups will be stored, the deafult is `backup`.
 - **RETENTION_PERIOD_DAYS**: Number of days to retain backups, the default is 30.
 - **BACKUP_DIRECTORY**: The directory where backups are stored on the image, the default is `/backup`.
+- **LOG_DIR**: Directory for log files. Defaults to `/var/log/backup-scripts` in Docker and `./logs` for standalone execution. Log files are named `{script-name}_{YYYY-MM-DD}.log`. Set to empty string (`LOG_DIR=""`) to disable file logging entirely. Logs always go to console regardless of this setting.
 
 ## Contributing
 

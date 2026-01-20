@@ -24,6 +24,17 @@ if [ -z "$RETENTION_PERIOD_DAYS" ]; then
     exit 1
 fi
 
+# Check LOG_DIR writability (optional warning)
+if [ -n "$LOG_DIR" ]; then
+    if [ ! -d "$LOG_DIR" ]; then
+        echo "Warning: LOG_DIR '$LOG_DIR' does not exist. Will attempt to create it."
+    elif [ ! -w "$LOG_DIR" ]; then
+        echo "Warning: LOG_DIR '$LOG_DIR' is not writable. File logging may fail."
+    else
+        echo "Log directory: $LOG_DIR"
+    fi
+fi
+
 # Function to run the backup script
 run_backup_script() {
     echo "Running backup script with BACKUP_DIRECTORY=${BACKUP_DIRECTORY}..."

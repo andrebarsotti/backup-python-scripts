@@ -3,21 +3,12 @@ import os
 import tarfile
 import argparse
 import logging
+from logging_config import setup_logging
 from progress_file_wrapper import ProgressFileWrapper
 from azure.storage.blob import BlobServiceClient, ContentSettings
 from datetime import datetime
 from dotenv import load_dotenv
 from tqdm import tqdm
-
-def setup_logging():
-    """
-    Configure the logging settings.
-    """
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-    
-    # Suppress logs from the Azure SDK
-    logging.getLogger('azure.core.pipeline.policies.http_logging_policy').setLevel(logging.WARNING)
-    logging.getLogger('azure.storage.blob').setLevel(logging.WARNING)
 
 
 def get_size(start_path='.'):
@@ -165,7 +156,7 @@ def main():
     """
     Main entry point of the script.
     """
-    setup_logging()
+    setup_logging('backup-azure')
     try:
         connection_string, container_name = load_environment_variables()
         directory = parse_command_line_arguments()

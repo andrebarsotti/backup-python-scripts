@@ -8,6 +8,7 @@ ENV AZURE_STORAGE_CONNECTION_STRING="AccountName=devstoreaccount1;AccountKey=Eby
 ENV AZURE_CONTAINER_NAME=backup
 ENV RETENTION_PERIOD_DAYS=30
 ENV BACKUP_DIRECTORY=/backup
+ENV LOG_DIR=/var/log/backup-scripts
 
 # Set the working directory
 WORKDIR /app
@@ -15,9 +16,10 @@ WORKDIR /app
 # Copy the requirements file
 COPY requirements.txt /app/
 
-# Install bash and required dependencies
+# Install bash and required dependencies, create log directory
 RUN apk add --no-cache bash && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt && \
+    mkdir -p /var/log/backup-scripts
 
 # Copy the rest of the source files
 COPY src/ /app/

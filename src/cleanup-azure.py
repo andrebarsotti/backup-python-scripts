@@ -2,20 +2,11 @@
 import os
 import argparse
 import logging
+from logging_config import setup_logging
 from datetime import datetime, timedelta, timezone
 from azure.storage.blob import BlobServiceClient
 from dotenv import load_dotenv
 
-def setup_logging():
-    """
-    Configures logging for the script. It sets logging level to INFO and suppresses
-    unnecessary logs from the Azure SDK.
-    """
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-    
-    # Suppress logs from the Azure SDK
-    logging.getLogger('azure.core.pipeline.policies.http_logging_policy').setLevel(logging.WARNING)
-    logging.getLogger('azure.storage.blob').setLevel(logging.WARNING)
 
 def remove_old_blobs(blob_service_client, container_name, days):
     """
@@ -94,7 +85,7 @@ def main():
     Main function that sets up logging, loads environment variables, parses command-line arguments,
     and triggers the removal of old blobs from Azure Blob Storage.
     """
-    setup_logging()
+    setup_logging('cleanup-azure')
 
     try:
         connection_string, container_name = load_environment_variables()

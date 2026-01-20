@@ -32,6 +32,12 @@ This is an Azure Backup Management system that provides automated backup and cle
    - Utility for displaying upload progress
    - Wraps file objects to track bytes transferred
 
+4. **logging_config.py** (src/logging_config.py)
+   - Shared logging configuration module
+   - Configurable file logging via LOG_DIR environment variable
+   - Supports dual output: console + file (for docker logs compatibility)
+   - Graceful fallback to console-only if file logging fails
+
 ### Docker Configuration
 
 - **Base Image:** python:3.12.4-alpine
@@ -46,6 +52,7 @@ This is an Azure Backup Management system that provides automated backup and cle
 ├── src/
 │   ├── backup-azure.py          # Main backup script
 │   ├── cleanup-azure.py         # Cleanup script
+│   ├── logging_config.py        # Shared logging configuration
 │   └── progress_file_wrapper.py # Progress tracking utility
 ├── scripts/
 │   └── entry-point.sh           # Docker entrypoint
@@ -82,10 +89,28 @@ This is an Azure Backup Management system that provides automated backup and cle
 
 ### cleanup-azure.py
 
-- **`remove_old_blobs(blob_service_client, container_name, days)`** (line 20)
+- **`remove_old_blobs(blob_service_client, container_name, days)`** (line 11)
   - Deletes blobs older than specified retention period
   - Uses timezone-aware datetime for accurate comparisons
   - Logs each deletion operation
+
+### logging_config.py
+
+- **`get_log_directory()`** (line 17)
+  - Determines log directory from LOG_DIR environment variable
+  - Returns None if LOG_DIR is empty string (disables file logging)
+  - Defaults to `/var/log/backup-scripts` in Docker, `./logs` standalone
+
+- **`ensure_log_directory(log_dir)`** (line 38)
+  - Creates log directory if it doesn't exist
+  - Verifies write permissions with test file
+  - Returns True if directory is writable, False otherwise
+
+- **`setup_logging(script_name)`** (line 56)
+  - Configures console handler (always enabled)
+  - Configures file handler (if LOG_DIR is set and writable)
+  - Log files named: `{script_name}_{YYYY-MM-DD}.log`
+  - Suppresses Azure SDK noise
 
 ## Environment Variables
 
@@ -96,7 +121,13 @@ AZURE_STORAGE_CONNECTION_STRING  # Azure connection string or Azurite default
 AZURE_CONTAINER_NAME             # Container name (default: backup)
 RETENTION_PERIOD_DAYS            # Days to retain backups (default: 30)
 BACKUP_DIRECTORY                 # Directory to backup (default: /backup)
+LOG_DIR                          # Log directory (default: /var/log/backup-scripts in Docker, ./logs standalone)
 ```
+
+**LOG_DIR Options:**
+- Set to a path: Logs written to `{LOG_DIR}/{script}_{date}.log`
+- Set to empty string (`LOG_DIR=""`): Disables file logging
+- Unset: Uses default based on environment detection
 
 **Azurite Default Connection String:**
 ```
@@ -113,9 +144,12 @@ AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50u
 - All functions have descriptive docstrings
 
 ### Logging Strategy
-- Configured in `setup_logging()` functions
+- Centralized in `logging_config.py` module (shared by all scripts)
+- Dual output: console (always) + file (configurable via LOG_DIR)
 - Format: `'%(asctime)s - %(levelname)s - %(message)s'`
+- Daily log files: `{script_name}_{YYYY-MM-DD}.log`
 - Azure SDK noise suppressed for cleaner output
+- Graceful fallback to console-only if file logging fails
 - Key operations logged: backup creation, uploads, deletions
 
 ### Error Handling
@@ -163,9 +197,12 @@ docker run --rm \
   -e RETENTION_PERIOD_DAYS=<days> \
   -e BACKUP_DIRECTORY='<directory>' \
   -v <local_path>:/backup \
+  -v <log_path>:/var/log/backup-scripts \
   --add-host=host.docker.internal:host-gateway \
   andrebarsotti/azure-blob-backup
 ```
+
+**Note:** Mount a volume to `/var/log/backup-scripts` to persist logs outside the container.
 
 ## Dependencies
 
@@ -190,6 +227,8 @@ When making changes, verify:
 - [ ] Scripts run successfully with Azurite locally
 - [ ] Progress bars display correctly during operations
 - [ ] Logging output is clear and informative
+- [ ] Log files created in LOG_DIR with correct naming
+- [ ] File logging gracefully fails with warning if directory not writable
 - [ ] Environment variables are properly validated
 - [ ] Docker image builds without errors
 - [ ] Entry point script executes both backup and cleanup
@@ -201,6 +240,11 @@ When making changes, verify:
 - Pattern: `{directory_basename}_{timestamp}.tgz`
 - Timestamp format: `YYYYMMDDHHMMSS`
 - Example: `mydata_20260120143052.tgz`
+
+### Log Filename Format
+- Pattern: `{script_name}_{date}.log`
+- Date format: `YYYY-MM-DD`
+- Example: `backup-azure_2026-01-20.log`
 
 ### Blob Deletion Logic
 - Uses `last_modified` property of blobs
