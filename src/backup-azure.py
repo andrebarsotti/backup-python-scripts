@@ -1,20 +1,39 @@
 #!/usr/bin/env python3
 import os
+import sys
 import tarfile
 import argparse
 import logging
 from logging_config import setup_logging
 from progress_file_wrapper import ProgressFileWrapper
+from shared_utils import (
+    load_azure_environment_variables,
+    ensure_directory,
+    validate_directory_path,
+)
 from azure.storage.blob import BlobServiceClient, ContentSettings
+from azure.core.exceptions import ResourceNotFoundError
 from datetime import datetime
 from pathlib import Path
-from dotenv import load_dotenv
 from tqdm import tqdm
+
+__all__ = [
+    'get_size',
+    'get_output_directory',
+    'create_tgz_backup',
+    'ensure_container_exists',
+    'create_backup',
+    'upload_backup_to_azure',
+    'cleanup_local_backup',
+    'main',
+]
 
 
 def get_size(start_path='.'):
     """
     Calculate the total size of the directory including its subdirectories.
+
+    Handles broken symlinks and inaccessible files gracefully.
 
     :param start_path: Path of the directory to calculate the size of.
     :return: Total size in bytes.
@@ -23,7 +42,13 @@ def get_size(start_path='.'):
     for dirpath, dirnames, filenames in os.walk(start_path):
         for f in filenames:
             fp = os.path.join(dirpath, f)
-            total_size += os.path.getsize(fp)
+            try:
+                # Skip symlinks and only count regular files
+                if os.path.isfile(fp) and not os.path.islink(fp):
+                    total_size += os.path.getsize(fp)
+            except (OSError, FileNotFoundError):
+                # Skip files that can't be accessed
+                logging.warning(f"Cannot access file for size calculation: {fp}")
     return total_size
 
 
@@ -36,27 +61,11 @@ def get_output_directory():
     return os.getenv('BACKUP_OUTPUT_DIR') or None
 
 
-def ensure_output_directory(output_dir):
-    """
-    Create output directory if it doesn't exist and verify write access.
-
-    :param output_dir: Path to the output directory.
-    :return: True if directory exists and is writable.
-    :raise ValueError: if directory cannot be created or is not writable.
-    """
-    try:
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
-        test_file = Path(output_dir) / '.write_test'
-        test_file.touch()
-        test_file.unlink()
-        return True
-    except (OSError) as e:
-        raise ValueError(f"Cannot write to output directory '{output_dir}': {e}")
-
-
 def create_tgz_backup(directory, output_filename):
     """
     Create a compressed tar.gz backup of the specified directory.
+
+    Handles files that are deleted or modified during backup gracefully.
 
     :param directory: The directory to backup.
     :param output_filename: The name of the output tar.gz file.
@@ -64,17 +73,37 @@ def create_tgz_backup(directory, output_filename):
     logging.info(f"Creating backup for directory: {directory}")
     total_size = get_size(directory)
     progress_bar = tqdm(total=total_size, unit='B', unit_scale=True, desc="Creating Backup")
-    
+    skipped_files = []
+
     with tarfile.open(name=output_filename, mode="w:gz", compresslevel=9) as tar:
         for dirpath, dirnames, filenames in os.walk(directory):
             for filename in filenames:
                 filepath = os.path.join(dirpath, filename)
-                tarinfo = tar.gettarinfo(filepath, arcname=os.path.relpath(filepath, directory))
-                with open(filepath, "rb") as file:
-                    progress_bar.update(tarinfo.size)  # Updating progress bar with file size
-                    tar.addfile(tarinfo, file)
-    
-        progress_bar.close()
+                try:
+                    # Skip symlinks to avoid potential issues
+                    if os.path.islink(filepath):
+                        logging.debug(f"Skipping symlink: {filepath}")
+                        continue
+
+                    tarinfo = tar.gettarinfo(filepath, arcname=os.path.relpath(filepath, directory))
+                    with open(filepath, "rb") as file:
+                        tar.addfile(tarinfo, file)
+                        progress_bar.update(tarinfo.size)
+                except FileNotFoundError:
+                    # File was deleted between os.walk and open
+                    skipped_files.append(filepath)
+                    logging.warning(f"File disappeared during backup: {filepath}")
+                except PermissionError:
+                    skipped_files.append(filepath)
+                    logging.warning(f"Permission denied for file: {filepath}")
+                except OSError as e:
+                    skipped_files.append(filepath)
+                    logging.warning(f"Cannot read file {filepath}: {e}")
+
+    progress_bar.close()
+
+    if skipped_files:
+        logging.warning(f"Backup completed with {len(skipped_files)} skipped files")
     logging.info(f"Backup created: {output_filename}")
 
 
@@ -90,44 +119,30 @@ def ensure_container_exists(blob_service_client, container_name):
     try:
         container_client.get_container_properties()
         logging.info(f"Container {container_name} already exists.")
-    except Exception:
+    except ResourceNotFoundError:
         logging.info(f"Container {container_name} does not exist, creating it.")
         container_client.create_container()
         logging.info(f"Container {container_name} created.")
 
 
-def load_environment_variables():
-    """
-    Load Azure storage connection string and container name from the environment variables.
-
-    :return: Tuple containing connection_string and container_name.
-    :raise ValueError: if environment variables are not set.
-    """
-    load_dotenv()
-    connection_string = os.getenv('AZURE_STORAGE_CONNECTION_STRING')
-    container_name = os.getenv('AZURE_CONTAINER_NAME')
-
-    if not connection_string or not container_name:
-        logging.error("Azure environment variables are not set properly")
-        raise ValueError("Please set the AZURE_STORAGE_CONNECTION_STRING and AZURE_CONTAINER_NAME environment variables.")
-    
-    logging.info("Environment variables loaded successfully")
-    return connection_string, container_name
-
 def parse_command_line_arguments():
     """
-    Parse command line arguments.
+    Parse and validate command line arguments.
 
     :return: Tuple of (directory, output_dir) where output_dir may be None.
+    :raise ValueError: if directory path is invalid.
     """
     parser = argparse.ArgumentParser(description="Backup a directory and upload to Azure Blob Storage.")
     parser.add_argument('directory', type=str, help='The directory to backup')
     parser.add_argument('-o', '--output-dir', type=str, default=None,
                         help='Directory to save the backup tar file before upload (default: current directory)')
     args = parser.parse_args()
-    logging.info(f"Command line arguments parsed: directory={args.directory}, output_dir={args.output_dir}")
 
-    return args.directory, args.output_dir
+    # Validate directory path for security and correctness
+    validated_directory = validate_directory_path(args.directory, "backup directory")
+    logging.info(f"Command line arguments parsed: directory={validated_directory}, output_dir={args.output_dir}")
+
+    return str(validated_directory), args.output_dir
 
 
 def create_backup(directory, output_dir=None):
@@ -194,16 +209,19 @@ def cleanup_local_backup(backup_filepath):
 def main():
     """
     Main entry point of the script.
+
+    Returns:
+        int: Exit code (0 for success, 1 for failure).
     """
     setup_logging('backup-azure')
     try:
-        connection_string, container_name = load_environment_variables()
+        connection_string, container_name = load_azure_environment_variables()
         directory, cli_output_dir = parse_command_line_arguments()
 
         # Determine output directory: CLI takes precedence over env var
         output_dir = cli_output_dir or get_output_directory()
         if output_dir:
-            ensure_output_directory(output_dir)
+            ensure_directory(output_dir, "output directory")
             logging.info(f"Using output directory: {output_dir}")
 
         backup_filepath, backup_filename = create_backup(directory, output_dir)
@@ -212,10 +230,13 @@ def main():
         upload_backup_to_azure(blob_service_client, container_name, backup_filepath, backup_filename)
 
         cleanup_local_backup(backup_filepath)
+        logging.info("Backup completed successfully")
+        return 0
     except Exception as e:
         logging.error(f"An error occurred: {e}")
+        return 1
 
 
 if __name__ == "__main__":
-    main()
-   
+    sys.exit(main())
+

@@ -9,6 +9,14 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
+__all__ = [
+    'setup_logging',
+    'get_log_directory',
+    'ensure_log_directory',
+    'DEFAULT_LOG_DIR',
+    'LOG_FORMAT',
+]
+
 DEFAULT_LOG_DIR = "/var/log/backup-scripts"
 LOG_FORMAT = '%(asctime)s - %(levelname)s - %(message)s'
 

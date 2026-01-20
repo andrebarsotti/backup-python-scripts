@@ -1,3 +1,13 @@
+#!/usr/bin/env python3
+"""
+Progress tracking wrapper for file uploads.
+
+Provides a file-like object wrapper that updates a progress bar during reads.
+"""
+
+__all__ = ['ProgressFileWrapper']
+
+
 class ProgressFileWrapper:
     """
     A file wrapper to integrate reading with a progress bar.
