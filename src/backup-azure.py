@@ -46,7 +46,7 @@ def get_size(start_path='.'):
                 # Skip symlinks and only count regular files
                 if os.path.isfile(fp) and not os.path.islink(fp):
                     total_size += os.path.getsize(fp)
-            except (OSError, FileNotFoundError):
+            except OSError:
                 # Skip files that can't be accessed
                 logging.warning(f"Cannot access file for size calculation: {fp}")
     return total_size
@@ -59,6 +59,38 @@ def get_output_directory():
     :return: Path to output directory, or None to use current directory.
     """
     return os.getenv('BACKUP_OUTPUT_DIR') or None
+
+
+def _add_file_to_tar(tar, filepath, directory, progress_bar, skipped_files):
+    """
+    Add a single file to the tar archive, handling errors gracefully.
+
+    :param tar: The tar file object.
+    :param filepath: The full path to the file to add.
+    :param directory: The base directory for relative path calculation.
+    :param progress_bar: The progress bar to update.
+    :param skipped_files: List to append skipped files to.
+    """
+    # Skip symlinks to avoid potential issues
+    if os.path.islink(filepath):
+        logging.debug(f"Skipping symlink: {filepath}")
+        return
+
+    try:
+        tarinfo = tar.gettarinfo(filepath, arcname=os.path.relpath(filepath, directory))
+        with open(filepath, "rb") as file:
+            tar.addfile(tarinfo, file)
+            progress_bar.update(tarinfo.size)
+    except FileNotFoundError:
+        # File was deleted between os.walk and open
+        skipped_files.append(filepath)
+        logging.warning(f"File disappeared during backup: {filepath}")
+    except PermissionError:
+        skipped_files.append(filepath)
+        logging.warning(f"Permission denied for file: {filepath}")
+    except OSError as e:
+        skipped_files.append(filepath)
+        logging.warning(f"Cannot read file {filepath}: {e}")
 
 
 def create_tgz_backup(directory, output_filename):
@@ -79,26 +111,7 @@ def create_tgz_backup(directory, output_filename):
         for dirpath, dirnames, filenames in os.walk(directory):
             for filename in filenames:
                 filepath = os.path.join(dirpath, filename)
-                try:
-                    # Skip symlinks to avoid potential issues
-                    if os.path.islink(filepath):
-                        logging.debug(f"Skipping symlink: {filepath}")
-                        continue
-
-                    tarinfo = tar.gettarinfo(filepath, arcname=os.path.relpath(filepath, directory))
-                    with open(filepath, "rb") as file:
-                        tar.addfile(tarinfo, file)
-                        progress_bar.update(tarinfo.size)
-                except FileNotFoundError:
-                    # File was deleted between os.walk and open
-                    skipped_files.append(filepath)
-                    logging.warning(f"File disappeared during backup: {filepath}")
-                except PermissionError:
-                    skipped_files.append(filepath)
-                    logging.warning(f"Permission denied for file: {filepath}")
-                except OSError as e:
-                    skipped_files.append(filepath)
-                    logging.warning(f"Cannot read file {filepath}: {e}")
+                _add_file_to_tar(tar, filepath, directory, progress_bar, skipped_files)
 
     progress_bar.close()
 

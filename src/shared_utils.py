@@ -61,7 +61,7 @@ def ensure_directory(directory_path, purpose="directory"):
         test_file.touch()
         test_file.unlink()
         return True
-    except (PermissionError, OSError) as e:
+    except OSError as e:
         raise ValueError(f"Cannot write to {purpose} '{directory_path}': {e}")
 
 
