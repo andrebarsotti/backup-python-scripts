@@ -67,15 +67,32 @@ This is an Azure Backup Management system that provides automated backup and cle
 
 ### backup-azure.py
 
-- **`create_tgz_backup(directory, output_filename)`** (line 38)
+- **`get_output_directory()`** (line 30)
+  - Gets output directory from BACKUP_OUTPUT_DIR environment variable
+  - Returns: Path to output directory, or None for current directory
+
+- **`ensure_output_directory(output_dir)`** (line 39)
+  - Creates output directory if it doesn't exist
+  - Verifies write permissions with test file
+  - Raises ValueError if directory cannot be created or is not writable
+
+- **`create_tgz_backup(directory, output_filename)`** (line 57)
   - Creates compressed tar.gz backup with progress tracking
   - Uses compression level 9 for maximum compression
   - Returns: None (creates file on disk)
 
-- **`upload_backup_to_azure(blob_service_client, container_name, backup_filename)`** (line 125)
+- **`create_backup(directory, output_dir=None)`** (line 133)
+  - Creates backup for specified directory
+  - Returns: Tuple of (backup_filepath, backup_filename)
+  - filepath: Full path for local file operations
+  - filename: Just the name for Azure blob
+
+- **`upload_backup_to_azure(blob_service_client, container_name, backup_filepath, blob_name)`** (line 154)
   - Uploads backup file to Azure with progress bar
   - Automatically creates container if it doesn't exist
   - Uses ProgressFileWrapper for upload tracking
+  - backup_filepath: Local file path to upload
+  - blob_name: Name for the blob in Azure (typically just the filename)
 
 - **`ensure_container_exists(blob_service_client, container_name)`** (line 62)
   - Checks for container existence
@@ -122,12 +139,18 @@ AZURE_CONTAINER_NAME             # Container name (default: backup)
 RETENTION_PERIOD_DAYS            # Days to retain backups (default: 30)
 BACKUP_DIRECTORY                 # Directory to backup (default: /backup)
 LOG_DIR                          # Log directory (default: /var/log/backup-scripts in Docker, ./logs standalone)
+BACKUP_OUTPUT_DIR                # Output directory for backup tar files before upload (default: current directory)
 ```
 
 **LOG_DIR Options:**
 - Set to a path: Logs written to `{LOG_DIR}/{script}_{date}.log`
 - Set to empty string (`LOG_DIR=""`): Disables file logging
 - Unset: Uses default based on environment detection
+
+**BACKUP_OUTPUT_DIR Options:**
+- Set to a path: Backup tar files created in specified directory
+- Unset: Uses current directory (default behavior)
+- Can be overridden by `-o/--output-dir` CLI argument
 
 **Azurite Default Connection String:**
 ```
@@ -180,7 +203,8 @@ AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50u
 1. Start Azurite: `docker-compose -f docker-compose.dev.yml up -d`
 2. Create .env with Azurite connection string
 3. Run scripts directly: `python src/backup-azure.py /path/to/backup`
-4. Verify with Azure Storage Explorer
+4. With custom output directory: `python src/backup-azure.py /path/to/backup -o /tmp/backups`
+5. Verify with Azure Storage Explorer
 
 ## Docker Operations
 
@@ -196,13 +220,14 @@ docker run --rm \
   -e AZURE_CONTAINER_NAME='<container_name>' \
   -e RETENTION_PERIOD_DAYS=<days> \
   -e BACKUP_DIRECTORY='<directory>' \
+  -e BACKUP_OUTPUT_DIR='/tmp/backups' \
   -v <local_path>:/backup \
   -v <log_path>:/var/log/backup-scripts \
   --add-host=host.docker.internal:host-gateway \
   andrebarsotti/azure-blob-backup
 ```
 
-**Note:** Mount a volume to `/var/log/backup-scripts` to persist logs outside the container.
+**Note:** Mount a volume to `/var/log/backup-scripts` to persist logs outside the container. Set `BACKUP_OUTPUT_DIR` to control where temporary backup tar files are created before upload.
 
 ## Dependencies
 

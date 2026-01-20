@@ -63,14 +63,26 @@ The `backup-azure.py` script backs up a specified local directory to Azure Blob 
 **Command:**
 
 ```bash
-python src/backup-azure.py <directory_to_backup>
+python src/backup-azure.py <directory_to_backup> [-o OUTPUT_DIR]
 ```
 
-**Example:**
+**Options:**
+- `-o, --output-dir`: Directory to save the backup tar file before upload (default: current directory)
+
+**Examples:**
 
 ```bash
+# Basic usage - creates tar in current directory
 python src/backup-azure.py /path/to/local/directory
+
+# With custom output directory
+python src/backup-azure.py /path/to/local/directory -o /tmp/backups
+
+# Using environment variable
+BACKUP_OUTPUT_DIR=/tmp/backups python src/backup-azure.py /path/to/local/directory
 ```
+
+The CLI `-o` flag takes precedence over the `BACKUP_OUTPUT_DIR` environment variable.
 
 **Code Overview:**
 
@@ -127,6 +139,7 @@ docker run --rm \
            -e AZURE_CONTAINER_NAME='<your_container_name>' \
            -e RETENTION_PERIOD_DAYS=<retention_days> \
            -e BACKUP_DIRECTORY='<path_to_backup_directory>' \
+           -e BACKUP_OUTPUT_DIR='/tmp/backups' \
            -v <path_to_backup_directory>:/backup \
            --add-host=host.docker.internal:host-gateway \
            andrebarsotti/azure-blob-backup
@@ -139,6 +152,7 @@ docker run --rm \
 - **RETENTION_PERIOD_DAYS**: Number of days to retain backups, the default is 30.
 - **BACKUP_DIRECTORY**: The directory where backups are stored on the image, the default is `/backup`.
 - **LOG_DIR**: Directory for log files. Defaults to `/var/log/backup-scripts` in Docker and `./logs` for standalone execution. Log files are named `{script-name}_{YYYY-MM-DD}.log`. Set to empty string (`LOG_DIR=""`) to disable file logging entirely. Logs always go to console regardless of this setting.
+- **BACKUP_OUTPUT_DIR**: Directory where backup tar files are created before upload to Azure. Defaults to current directory. Can be overridden by the `-o/--output-dir` CLI argument.
 
 ## Contributing
 
