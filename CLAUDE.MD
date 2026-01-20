@@ -67,7 +67,7 @@ This is an Azure Backup Management system that provides automated backup and cle
 
 ### backup-azure.py
 
-- **`get_output_directory()`** (line 30)
+- **`get_output_directory()`** (line 54)
   - Gets output directory from BACKUP_OUTPUT_DIR environment variable
   - Returns: Path to output directory, or None for current directory
 
